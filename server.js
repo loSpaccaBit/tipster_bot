@@ -118,7 +118,7 @@ app.get('/api/admin/recent-users', async (req, res) => {
         console.log('🔍 Query per recuperare gli utenti recenti...');
         const { data: users, error } = await supabase
             .from('users')
-            .select('*')
+            .select('id, telegram_id, username, first_name, last_name, has_joined_channel, joined_at, created_at')
             .order('created_at', { ascending: false })
             .limit(10)
             .throwOnError();
@@ -145,12 +145,14 @@ app.get('/api/admin/recent-users', async (req, res) => {
 
         // Formatta i dati per la WebApp
         const formattedUsers = users.map(user => ({
-            id: user.telegram_id,
-            username: user.username || 'Anonimo',
-            firstName: user.first_name || '',
-            lastName: user.last_name || '',
-            lastActive: user.joined_at || user.created_at,
-            hasJoinedChannel: user.has_joined_channel
+            id: user.id,
+            telegram_id: user.telegram_id,
+            username: user.username || 'N/A',
+            first_name: user.first_name || '',
+            last_name: user.last_name || '',
+            has_joined_channel: user.has_joined_channel,
+            joined_at: user.joined_at,
+            created_at: user.created_at
         }));
 
         console.log('✅ Utenti formattati:', {
@@ -313,6 +315,37 @@ app.get('/api/admin/export-users', async (req, res) => {
         });
         res.status(500).json({ 
             error: 'Errore interno del server',
+            details: error.message
+        });
+    }
+});
+
+// Nuova Route per inviare un messaggio singolo
+app.post('/api/admin/send-message/:telegramId', async (req, res) => {
+    console.log('✉️ Tentativo di invio messaggio singolo');
+    const { telegramId } = req.params;
+    const { message } = req.body;
+
+    console.log('🆔 Telegram ID:', telegramId);
+    console.log('📝 Messaggio ricevuto:', message ? 'Presente' : 'Mancante');
+
+    if (!telegramId || !message) {
+        console.error('❌ Telegram ID o messaggio mancante');
+        return res.status(400).json({ error: 'Telegram ID e messaggio sono richiesti' });
+    }
+
+    try {
+        console.log(`📤 Invio messaggio a ${telegramId}...`);
+        await bot.telegram.sendMessage(telegramId, message);
+        console.log(`✅ Messaggio inviato a ${telegramId}`);
+        res.json({ success: true, message: 'Messaggio inviato con successo' });
+    } catch (error) {
+        console.error(`❌ Errore nell\'invio del messaggio a ${telegramId}:`, {
+            message: error.message,
+            code: error.code
+        });
+        res.status(500).json({ 
+            error: 'Errore nell\'invio del messaggio',
             details: error.message
         });
     }
